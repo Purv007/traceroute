@@ -1,0 +1,33 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h2 class="title">Applied Recommendation • {{ scenario.upper() }}</h2>
+<p class="subtitle">Problem: {{ problem }} • Input: {{ msg_len }} bytes • Repeat: {{ repeat }} • Source: {{ src_label }}</p>
+
+<div class="panel mb-6">
+  <div class="panel-title">Recommendation</div>
+  <div class="text-slate-300">Use <b>{{ pick.algo }} {{ pick.variant }}</b> — fastest AEAD on your data (mean {{ "%.4f"|format(pick.mean_ms) }} ms).</div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">Evidence</div>
+  <div class="overflow-x-auto">
+    <table class="tbl">
+      <thead><tr><th>Algorithm</th><th class="t-center">AEAD</th><th class="t-right">Mean (ms)</th><th class="t-right">p95 (ms)</th><th>Preview</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>{{ r.algo }} {{ r.variant }}</td>
+          <td class="t-center">{{ "✓" if r.aead else "—" }}</td>
+          <td class="t-right">{{ "%.4f"|format(r.mean_ms) }}</td>
+          <td class="t-right">{{ "%.4f"|format(r.p95_ms) }}</td>
+          <td class="mono small break-all">{{ r.preview }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<a href="{{ url_for('index') }}" class="btn-secondary mt-6">← Back</a>
+{% endblock %}

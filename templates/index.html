@@ -1,0 +1,75 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6">
+  <section class="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+    <div class="grid md:grid-cols-4 gap-3 mb-4" id="mode-tabs">
+      <button type="button" data-mode="analyze" class="tab-btn selected">Analyze</button>
+      <button type="button" data-mode="compare_multi" class="tab-btn">Compare‑Multi</button>
+      <button type="button" data-mode="apply" class="tab-btn">Apply</button>
+      <button type="button" data-mode="quick" class="tab-btn">Quick Encrypt</button>
+    </div>
+
+    <form id="cn-form" method="post" enctype="multipart/form-data" class="grid gap-5">
+      <input type="hidden" name="mode" id="mode" value="analyze"/>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div>
+          <label class="lbl">Repeat</label>
+          <input name="repeat" id="repeat" type="number" value="15" min="1" class="inp"/>
+          <p class="hint">How many times to time each algorithm.</p>
+        </div>
+
+        <div>
+          <label class="lbl">Scenario (single)</label>
+          <select name="scenario" id="scenario-single" class="inp">
+            {% for s in scenarios %}<option value="{{s}}">{{s.upper()}}</option>{% endfor %}
+          </select>
+          <p class="hint">Used for Analyze / Apply / Quick. Disabled in Compare‑Multi.</p>
+        </div>
+
+        <div>
+          <label class="lbl">Scenarios (multi)</label>
+          <div class="grid grid-cols-3 gap-2" id="scenario-multi">
+            {% for s in scenarios %}
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="scenarios" value="{{s}}" class="accent-sky-500 multi-box"/>
+              <span>{{ s.upper() }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <p class="hint">Select one or more when mode is Compare‑Multi.</p>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="lbl">Message (text)</label>
+          <textarea name="message" id="message" rows="6" class="inp" placeholder="Type/paste your message...">Encrypt THIS exact message</textarea>
+          <div class="flex justify-between text-xs text-slate-400 mt-1">
+            <span id="char-count">0 chars</span>
+            <span>If a file is uploaded, it takes priority.</span>
+          </div>
+        </div>
+        <div>
+          <label class="lbl">OR Upload file</label>
+          <div id="drop" class="drop">
+            <input type="file" name="file" id="file" class="file-hidden"/>
+            <div class="text-slate-400 text-sm">Drag & drop or click to choose a file</div>
+          </div>
+          <label class="lbl mt-4">Problem (Apply mode)</label>
+          <input name="problem" type="text" value="Protect chat over public internet" class="inp"/>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button class="btn-primary" id="run-btn">
+          <span class="spinner hidden" id="spinner"></span>
+          Run
+        </button>
+        <span class="text-slate-400 text-xs" id="mode-help">Single‑scenario modes use the dropdown. Checkboxes are ignored.</span>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

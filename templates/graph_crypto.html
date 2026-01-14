@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2 class="text-lg font-semibold mb-4">Graph-Based Crypto</h2>
+
+<div class="flex items-center gap-3 text-sm mb-4">
+  <a href="{{ url_for('graph_crypto', mode='original') }}"
+     class="px-2 py-1 rounded border border-slate-700 bg-slate-900 {% if mode!='paper' %}ring-2 ring-sky-500{% endif %}">
+     Original
+  </a>
+  <a href="{{ url_for('graph_crypto', mode='paper') }}"
+     class="px-2 py-1 rounded border border-slate-700 bg-slate-900 {% if mode=='paper' %}ring-2 ring-sky-500{% endif %}">
+     Paper (Exact)
+  </a>
+</div>
+
+<form method="post" class="grid gap-3 max-w-3xl">
+  <input type="hidden" name="mode" value="{{ 'paper' if mode=='paper' else 'original' }}">
+
+  <label class="text-sm">
+    Plaintext (letters only):
+    <input class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-400"
+           type="text" name="plaintext" required placeholder="MATHS / UNITED / SECURITY">
+  </label>
+
+  <label class="text-sm">
+    Scheme:
+    <select name="scheme"
+            class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100">
+      <option value="corona">Corona C<sub>n</sub> ∘ C<sub>n</sub></option>
+      <option value="bipartite">Complete Bipartite</option>
+      <option value="star">Star S<sub>n+1</sub> = K<sub>1</sub> ∘ K<sub>n</sub></option>
+    </select>
+  </label>
+
+  {% if mode == 'paper' %}
+    <div class="text-sm">
+      <strong>Corona params:</strong>
+      shift n:
+      <input type="number" name="shift_n" value="5" style="width:6rem"
+             class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-100">
+      b-values (optional):
+      <input type="text" name="b_values" placeholder="31,71,51,49,41" style="min-width:18rem"
+             class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-400">
+    </div>
+
+    <div class="text-sm">
+      <strong>Bipartite/Star key k (3..12):</strong>
+      <input type="number" name="k" value="6" style="width:6rem"
+             class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-100">
+    </div>
+
+    <button class="px-3 py-2 rounded bg-sky-600 hover:bg-sky-500 text-white w-fit" type="submit">
+      Encrypt (Paper-Accurate)
+    </button>
+  {% else %}
+    <div class="text-sm">
+      <strong>Corona (legacy):</strong>
+      shift:
+      <input type="number" name="shift" value="7" style="width:6rem"
+             class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-100">
+      b-base:
+      <input type="number" name="bbase" value="211" style="width:8rem"
+             class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-100">
+    </div>
+    <div class="text-sm">
+      <strong>Bipartite key (legacy):</strong>
+      <input type="number" name="key_k" value="6" style="width:6rem"
+             class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-100">
+    </div>
+    <button class="px-3 py-2 rounded bg-sky-600 hover:bg-sky-500 text-white w-fit" type="submit">
+      Encrypt (Original)
+    </button>
+  {% endif %}
+</form>
+
+{% if err %}
+  <div class="mt-4 text-sm text-rose-300 bg-rose-900/30 border border-rose-800 rounded px-3 py-2">
+    {{ err }}
+  </div>
+{% endif %}
+
+{% if result %}
+  <hr class="my-6 border-slate-800">
+  <h3 class="font-semibold mb-2">Result</h3>
+
+  <p class="text-sm"><strong>Scheme:</strong> {{ result.scheme }}</p>
+  {% if result.roundtrip %}
+    <p class="text-sm"><strong>Round-trip (paper-mode decrypt):</strong> {{ result.roundtrip }}</p>
+  {% endif %}
+
+  {% if img_path %}
+    <h4 class="mt-4 font-semibold">Graph (image)</h4>
+    <img src="{{ url_for('static', filename='out/' + img_path.split('/')[-1]) }}"
+         alt="Graph rendering"
+         style="max-width:100%;border:1px solid #1f2937;border-radius:8px;padding:6px;">
+  {% endif %}
+
+  {% if proof %}
+    <details class="mt-4 bg-slate-900/60 border border-slate-800 rounded">
+      <summary class="cursor-pointer px-3 py-2 font-semibold">
+        Proof of Correctness
+        {% if proof.ok %}
+          <span class="text-emerald-400 ml-2">✓ All checks passed</span>
+        {% else %}
+          <span class="text-rose-400 ml-2">✗ Failed</span>
+        {% endif %}
+      </summary>
+      <div class="p-3 text-sm space-y-2">
+        {% if proof.error %}
+          <div class="text-rose-300">Error: {{ proof.error }}</div>
+        {% endif %}
+        {% for c in proof.checks %}
+          <div class="flex items-start gap-2">
+            <div class="mt-0.5">{{ '✅' if c.pass else '❌' }}</div>
+            <div>
+              <div class="font-medium">{{ c.name }}</div>
+              {% if c.want is defined or c.got is defined %}
+                <div class="text-xs text-slate-400">want: {{ c.want }}<br>got: {{ c.got }}</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  {% endif %}
+
+  {% if result.table %}
+    <h4 class="mt-4 font-semibold">Alphabet Table ({{ result.params.rows }} × {{ result.params.cols }})</h4>
+    <pre class="bg-slate-900 border border-slate-800 rounded p-3 text-xs overflow-auto">{{ result.table | tojson(indent=2) }}</pre>
+  {% endif %}
+
+  <h4 class="mt-4 font-semibold">Graph JSON</h4>
+  <pre class="bg-slate-900 border border-slate-800 rounded p-3 text-xs overflow-auto">{{ result.graph | tojson(indent=2) }}</pre>
+
+  <h4 class="mt-4 font-semibold">Params</h4>
+  <pre class="bg-slate-900 border border-slate-800 rounded p-3 text-xs overflow-auto">{{ result.params | tojson(indent=2) }}</pre>
+
+  {% if result.tokens %}
+    <h4 class="mt-4 font-semibold">Tokens (a_i = r * c)</h4>
+    <pre class="bg-slate-900 border border-slate-800 rounded p-3 text-xs overflow-auto">{{ result.tokens | tojson(indent=2) }}</pre>
+  {% endif %}
+
+  {% if result.a_values %}
+    <h4 class="mt-4 font-semibold">a values (star)</h4>
+    <pre class="bg-slate-900 border border-slate-800 rounded p-3 text-xs overflow-auto">{{ result.a_values | tojson(indent=2) }}</pre>
+  {% endif %}
+{% endif %}
+
+{% endblock %}

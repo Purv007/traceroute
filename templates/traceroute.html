@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2 class="text-lg font-semibold mb-4">Traceroute</h2>
+
+<form method="post" class="grid gap-3 max-w-3xl">
+  <label class="text-sm">
+    Host / URL / IP:
+    <input class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100" name="host"
+      value="{{ host or '' }}" placeholder="example.com or 1.1.1.1">
+  </label>
+
+  <div class="flex gap-4 items-end">
+    <label class="text-sm">
+      Max hops:
+      <input class="mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100" name="max_hops"
+        type="number" value="{{ max_hops or 20 }}" style="width:8rem">
+    </label>
+
+    <label class="text-sm inline-flex items-center gap-2">
+      <input type="checkbox" name="geo" value="1" {% if geo %}checked{% endif %}>
+      Add map overlay
+    </label>
+
+    <button class="px-3 py-2 rounded bg-sky-600 hover:bg-sky-500 text-white" type="submit">Run</button>
+  </div>
+</form>
+
+{% if error %}
+<div class="mt-4 text-sm text-rose-300 bg-rose-900/30 border border-rose-800 rounded px-3 py-2">{{ error }}</div>
+{% endif %}
+
+{% if rows %}
+<hr class="my-6 border-slate-800">
+
+{% if analytics %}
+<div class="grid md:grid-cols-3 gap-3 mb-4 text-sm">
+  <div class="bg-slate-900/60 border border-slate-800 rounded p-3">
+    <div class="text-slate-400">Total hops</div>
+    <div class="text-xl font-semibold">{{ analytics.total_hops }}</div>
+  </div>
+  <div class="bg-slate-900/60 border border-slate-800 rounded p-3">
+    <div class="text-slate-400">Avg RTT (ms)</div>
+    <div class="text-xl font-semibold">{{ analytics.avg_ms if analytics.avg_ms is not none else '—' }}</div>
+  </div>
+  <div class="bg-slate-900/60 border border-slate-800 rounded p-3">
+    <div class="text-slate-400">p95 RTT (ms)</div>
+    <div class="text-xl font-semibold">{{ analytics.p95_ms if analytics.p95_ms is not none else '—' }}</div>
+  </div>
+</div>
+{% endif %}
+
+{# ---------- Shared JSON blob to avoid Jinja inside JS ---------- #}
+<script type="application/json" id="hops-json">
+  {{ rows | tojson }}
+</script>
+
+{% if geo and analytics and analytics.have_geo %}
+<!-- Leaflet map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<div id="map" style="height: 360px; border:1px solid #1f2937; border-radius:8px;"></div>
+
+<script>
+  const hops = JSON.parse(document.getElementById('hops-json').textContent);
+  const pts = hops
+    .filter(h => typeof h.lat === 'number' && typeof h.lon === 'number')
+    .map(h => ({
+      lat: h.lat,
+      lon: h.lon,
+      label: `Hop ${h.hop} — ${h.ip || h.host || ''}<br>RTT: ${(
+        typeof h.rtt_ms === 'number' ? h.rtt_ms.toFixed(2) : '—'
+      )} ms`
+    }));
+
+  const map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  if (pts.length) {
+    const latlngs = pts.map(p => [p.lat, p.lon]);
+    L.polyline(latlngs, { weight: 3 }).addTo(map);
+    pts.forEach(p => L.marker([p.lat, p.lon]).addTo(map).bindPopup(p.label));
+    map.fitBounds(latlngs, { padding: [20, 20] });
+  } else {
+    map.setView([20, 77], 4); // fallback over India
+  }
+</script>
+{% endif %}
+
+<div class="mt-6 grid md:grid-cols-2 gap-6">
+  <div>
+    <h3 class="font-semibold mb-2">RTT by Hop</h3>
+    <canvas id="rttChart"></canvas>
+  </div>
+  <div>
+    <h3 class="font-semibold mb-2">Hops</h3>
+    <div class="overflow-auto border border-slate-800 rounded">
+      <table class="w-full text-xs">
+        <thead class="bg-slate-900/60">
+          <tr>
+            <th class="text-left p-2">#</th>
+            <th class="text-left p-2">IP / Host</th>
+            <th class="text-left p-2">RTT (ms)</th>
+            <th class="text-left p-2">Geo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in rows %}
+          <tr class="border-t border-slate-800">
+            <td class="p-2">{{ h.hop }}</td>
+            <td class="p-2">{{ h.ip or h.host or '—' }}</td>
+            <td class="p-2">{{ '%.2f'|format(h.rtt_ms) if h.rtt_ms is number else '—' }}</td>
+            <td class="p-2">
+              {% if h.lat and h.lon %}
+              {{ '%.3f'|format(h.lat) }}, {{ '%.3f'|format(h.lon) }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const rowsData = JSON.parse(document.getElementById('hops-json').textContent);
+
+  const labels = rowsData.map(r => `#${r.hop}`);
+  const data   = rowsData.map(r => (typeof r.rtt_ms === 'number') ? r.rtt_ms : null);
+
+  const ctx = document.getElementById('rttChart');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'RTT (ms)',
+        data,
+        spanGaps: true,
+        tension: 0.2
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { title: { display: true, text: 'ms' } },
+        x: { title: { display: true, text: 'Hop' } }
+      }
+    }
+  });
+</script>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Graph-Based Crypto — <em>Exact (Research Paper)</em></h2>
+<p>This page implements the algorithms exactly as described in the paper (A..Z→1..26, Caesar shift on mod 26, primes, and the star-graph 10^i weighting).</p>
+
+<form method="post" class="grid gap-3" style="row-gap: .75rem;">
+  <label>
+    Plaintext (letters only in paper mode):
+    <input type="text" name="plaintext" required placeholder="MATHS / UNITED / SECURITY"
+           value="{{ request.form.plaintext if request.form.plaintext is defined else '' }}">
+  </label>
+
+  <label>
+    Scheme:
+    <select name="scheme">
+      <option value="corona" {{ 'selected' if request.form.scheme=='corona' else '' }}>Corona C<sub>n</sub> ∘ C<sub>n</sub></option>
+      <option value="bipartite" {{ 'selected' if request.form.scheme=='bipartite' else '' }}>Complete Bipartite</option>
+      <option value="star" {{ 'selected' if request.form.scheme=='star' else '' }}>Star S<sub>n+1</sub>=K<sub>1</sub>∘K<sub>n</sub></option>
+    </select>
+  </label>
+
+  <div>
+    <strong>Corona params:</strong>
+    shift n:
+    <input type="number" name="shift_n" value="{{ request.form.shift_n or 5 }}" style="width:6rem">
+    b-values (comma-separated, optional):
+    <input type="text" name="b_values" placeholder="31,71,51,49,41"
+           value="{{ request.form.b_values if request.form.b_values is defined else '' }}"
+           style="min-width:18rem">
+  </div>
+
+  <div>
+    <strong>Bipartite/Star key k (3..12):</strong>
+    <input type="number" name="k" value="{{ request.form.k or 6 }}" style="width:6rem">
+  </div>
+
+  <button class="btn" type="submit">Encrypt (Paper-Accurate)</button>
+</form>
+
+{% if err %}
+  <div class="error" style="color:#b00020;margin-top:.75rem">{{ err }}</div>
+{% endif %}
+
+{% if result %}
+<hr>
+<h3>Result</h3>
+<p><strong>Scheme:</strong> {{ result.scheme }}</p>
+<p><strong>Round-trip (paper-mode decrypt):</strong> {{ result.roundtrip }}</p>
+
+{% if img_path %}
+  <h4>Graph (image)</h4>
+  <figure style="margin:0">
+    <img src="{{ url_for('static', filename='out/' + img_path.split('/')[-1]) }}"
+         alt="Graph rendering"
+         style="max-width:100%;border:1px solid #ddd;border-radius:8px;padding:6px;">
+    <figcaption style="margin-top:.5rem">
+      <a href="{{ url_for('static', filename='out/' + img_path.split('/')[-1]) }}" download>
+        ⬇️ Download image
+      </a>
+    </figcaption>
+  </figure>
+{% endif %}
+
+{% if result.table %}
+  <h4>Alphabet Table ({{ result.params.rows }} × {{ result.params.cols }})</h4>
+  <div style="overflow:auto;border:1px solid #eee;border-radius:8px;padding:.5rem;margin-bottom:.5rem;">
+    <table style="border-collapse:collapse;min-width:400px;">
+      <thead>
+        <tr>
+          <th style="border:1px solid #ddd;padding:.25rem .5rem;background:#fafafa;">Row \ Col</th>
+          {% for p in result.col_primes %}
+            <th style="border:1px solid #ddd;padding:.25rem .5rem;background:#fafafa;">{{ p }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row_idx, row in enumerate(result.table) %}
+          <tr>
+            <td style="border:1px solid #ddd;padding:.25rem .5rem;background:#fafafa;font-weight:600;">
+              {{ result.row_primes[row_idx] }}
+            </td>
+            {% for ch in row %}
+              <td style="border:1px solid #ddd;padding:.25rem .5rem;text-align:center;font-weight:600;">
+                {{ ch }}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+<h4>Params</h4>
+<pre>{{ result.params | tojson(indent=2) }}</pre>
+
+{% if result.tokens %}
+  <h4>Tokens (a_i = r * c)</h4>
+  <pre>{{ result.tokens | tojson(indent=2) }}</pre>
+{% endif %}
+
+{% if result.a_values %}
+  <h4>a values (star)</h4>
+  <pre>{{ result.a_values | tojson(indent=2) }}</pre>
+{% endif %}
+
+{% if result.graph %}
+  <h4>Graph JSON</h4>
+  <pre>{{ result.graph | tojson(indent=2) }}</pre>
+{% endif %}
+
+{% if result.main_cycle_b %}
+  <h4>Main cycle b<sub>i</sub> (corona, randomized)</h4>
+  <pre>{{ result.main_cycle_b | tojson(indent=2) }}</pre>
+{% endif %}
+
+{% endif %}
+{% endblock %}

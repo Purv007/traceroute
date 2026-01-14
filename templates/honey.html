@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="title">Honey Decrypt (Demo)</h2>
+<p class="subtitle">
+  Paste the Base64 fields from <em>Honey-AESGCM 256</em> (Quick/Analyze) and a Base64 key.
+  Correct key ⇒ authentic plaintext. Wrong key ⇒ realistic decoy, no error.
+</p>
+
+<form method="post" class="grid gap-3 max-w-3xl">
+  <input type="hidden" name="action" value="decrypt"/>
+
+  <label class="text-sm">
+    Ciphertext (Base64):
+    <textarea name="ciphertext_b64" rows="3"
+      class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
+      required>{{ ciphertext_b64 or "" }}</textarea>
+    <div class="text-xs text-slate-400 mt-1">This is the special Honey envelope (starts with <code>HE1</code> internally).</div>
+  </label>
+
+  <div class="grid md:grid-cols-2 gap-3">
+    <label class="text-sm">
+      Nonce (Base64):
+      <input name="nonce_b64" value="{{ nonce_b64 or "" }}" required
+        class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"/>
+    </label>
+    <label class="text-sm">
+      AAD (Base64):
+      <input name="ad_b64" value="{{ ad_b64 or "" }}" required
+        class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"/>
+    </label>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-3">
+    <label class="text-sm">
+      Tag (Base64):
+      <input name="tag_b64" value="{{ tag_b64 or "" }}" required
+        class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"/>
+    </label>
+    <label class="text-sm">
+      Key (Base64):
+      <input name="key_b64" value="{{ key_b64 or "" }}"
+        placeholder="Leave blank to try wrong key later"
+        class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-slate-100"/>
+    </label>
+  </div>
+
+  <div class="flex gap-2">
+    <button class="px-3 py-2 rounded bg-sky-600 hover:bg-sky-500 text-white" type="submit">Decrypt</button>
+    <a href="{{ url_for('index') }}" class="btn-secondary">← Back</a>
+  </div>
+</form>
+
+{% if err %}
+  <div class="mt-4 text-sm text-rose-300 bg-rose-900/30 border border-rose-800 rounded px-3 py-2">{{ err }}</div>
+{% endif %}
+
+{% if output is not none %}
+  <hr class="my-6 border-slate-800">
+  <div class="panel">
+    <div class="panel-title">
+      Output
+      {% if is_decoy %}
+        <span class="badge" title="AEAD auth failed; decoy shown">Decoy</span>
+      {% else %}
+        <span class="badge" title="AEAD auth verified">Authentic</span>
+      {% endif %}
+    </div>
+    <pre class="bg-slate-900 border border-slate-800 rounded p-3 text-sm overflow-auto">{{ output }}</pre>
+  </div>
+{% endif %}
+{% endblock %}

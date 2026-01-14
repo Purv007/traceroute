@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="title">Quick Encrypt • {{ scenario.upper() }}</h2>
+<p class="subtitle">Input: {{ msg_len }} bytes • Repeat: {{ repeat }} • Source: {{ src_label }}</p>
+
+<div class="grid md:grid-cols-2 gap-4">
+  {% for r in rows %}
+  <div class="card">
+    <div class="flex items-center justify-between mb-2">
+      <div class="font-medium">{{ r.algo }} {{ r.variant }}</div>
+      <span class="badge">{{ "AEAD" if r.aead else "Enc+MAC" }}</span>
+    </div>
+
+    {% if not r.aead %}
+      <div class="text-[11px] text-amber-300 mb-2">
+        Security note: Encrypt-then-MAC. <strong>Verify the tag before decrypting</strong>. Ensure unique IV/nonce per key.
+      </div>
+    {% endif %}
+
+    {% if r.algo == "Honey-AESGCM" %}
+      <div class="text-[11px] text-emerald-300 mb-2">
+        Honey mode: wrong key ⇒ realistic decoy text instead of an error.
+      </div>
+    {% endif %}
+
+    <div class="text-xs text-slate-400 mb-2">
+      Mean {{ "%.4f"|format(r.mean_ms) }} ms • p95 {{ "%.4f"|format(r.p95_ms) }} ms
+    </div>
+
+    <div class="mono small break-all mb-2"><b>ciphertext:</b> <span id="ct-{{ loop.index }}">{{ r.ciphertext_b64 }}</span></div>
+    <div class="mono small break-all mb-2"><b>key:</b> <span id="key-{{ loop.index }}">{{ r.key_b64 }}</span></div>
+    {% if r.nonce_b64 %}<div class="mono small break-all mb-2"><b>nonce/iv:</b> <span id="nonce-{{ loop.index }}">{{ r.nonce_b64 }}</span></div>{% endif %}
+    {% if r.ad_b64 %}<div class="mono small break-all mb-2"><b>aad:</b> <span id="ad-{{ loop.index }}">{{ r.ad_b64 }}</span></div>{% endif %}
+    {% if r.tag_b64 %}<div class="mono small break-all mb-2"><b>tag:</b> <span id="tag-{{ loop.index }}">{{ r.tag_b64 }}</span></div>{% endif %}
+
+    <div class="flex flex-wrap gap-2 mt-2">
+      <button type="button" class="btn-secondary" data-copy-target="ct-{{ loop.index }}">Copy ciphertext</button>
+      <button type="button" class="btn-secondary" data-copy-target="key-{{ loop.index }}">Copy key</button>
+      <button type="button" class="btn-secondary" data-copy-bundle="{{ loop.index }}">Copy bundle (JSON)</button>
+
+      {# ---- New: Open in Honey Decrypt for Honey-AESGCM rows ---- #}
+      {% if r.algo == "Honey-AESGCM" %}
+      <form method="post" action="{{ url_for('honey_decrypt') }}" class="inline-flex mt-2">
+        <input type="hidden" name="ciphertext_b64" value="{{ r.ciphertext_b64|e }}">
+        <input type="hidden" name="nonce_b64"      value="{{ r.nonce_b64|default('', true)|e }}">
+        <input type="hidden" name="ad_b64"         value="{{ r.ad_b64|default('', true)|e }}">
+        <input type="hidden" name="tag_b64"        value="{{ r.tag_b64|default('', true)|e }}">
+        <input type="hidden" name="key_b64"        value="{{ r.key_b64|e }}">
+        <button type="submit" name="action" value="decrypt" class="btn-secondary">
+          Open in Honey Decrypt
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Global actions -->
+<div class="flex flex-wrap gap-2 mt-6">
+  <button type="button" class="btn-secondary" id="copy-all">Copy ALL as JSON</button>
+  <button type="button" class="btn-secondary" id="download-all">Download ALL (.json)</button>
+  <a href="{{ url_for('index') }}" class="btn-secondary">← Back</a>
+</div>
+
+{# ---- Data blob: no Jinja inside JS expressions ---- #}
+<script id="quick-rows-json" type="application/json">{{ rows|default([])|tojson }}</script>
+
+<script>
+  // Parse rows from JSON blob
+  let __quickRows = [];
+  try { __quickRows = JSON.parse(document.getElementById('quick-rows-json')?.textContent || '[]'); }
+  catch (_) { __quickRows = []; }
+
+  // Fallback copy helper
+  if (typeof window.copyText !== 'function') {
+    window.copyText = async function(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      try { await navigator.clipboard.writeText(el.textContent.trim()); } catch (_) {}
+    }
+  }
+
+  function bundleFromRow(r) {
+    return {
+      algorithm: r.algo,
+      variant:   r.variant,
+      aead:      r.aead,
+      ciphertext_b64: r.ciphertext_b64,
+      key_b64:       r.key_b64,
+      nonce_b64:     r.nonce_b64 ?? null,
+      ad_b64:        r.ad_b64 ?? null,
+      tag_b64:       r.tag_b64 ?? null,
+      timings_ms: { mean: r.mean_ms, p95: r.p95_ms },
+      note: (!r.aead ? "Encrypt-then-MAC: verify tag before decrypt; ensure unique IV/nonce per key." : null)
+    };
+  }
+
+  async function copyBundle(idx1) {
+    const r = __quickRows[idx1 - 1];
+    if (!r) return;
+    try { await navigator.clipboard.writeText(JSON.stringify(bundleFromRow(r), null, 2)); } catch (_) {}
+  }
+
+  async function copyAll() {
+    const all = __quickRows.map(bundleFromRow);
+    try { await navigator.clipboard.writeText(JSON.stringify(all, null, 2)); } catch (_) {}
+  }
+
+  function downloadAll() {
+    const all = __quickRows.map(bundleFromRow);
+    const blob = new Blob([JSON.stringify(all, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `quick_{{ scenario|e }}_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Event delegation: no inline onclick needed
+  document.addEventListener('click', async (e) => {
+    const t = e.target;
+    if (t.matches('[data-copy-target]')) {
+      await copyText(t.dataset.copyTarget);
+    } else if (t.matches('[data-copy-bundle]')) {
+      const idx = parseInt(t.dataset.copyBundle, 10);
+      if (!Number.isNaN(idx)) await copyBundle(idx);
+    } else if (t.id === 'copy-all') {
+      await copyAll();
+    } else if (t.id === 'download-all') {
+      downloadAll();
+    }
+  });
+</script>
+{% endblock %}
