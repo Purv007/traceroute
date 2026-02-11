@@ -1,4 +1,4 @@
-# CN Encryption Project (Python)
+# Encryption Benchmark & Analysis Project (Python)
 
 A clean, ready to run Python project that mirrors the Java implementation.  
 The project benchmarks and compares modern authenticated encryption algorithms alongside a legacy construction. It generates detailed Markdown reports and JSON artifacts under the `out/` directory.
@@ -133,3 +133,4 @@ Encrypts using the selected scheme, outputs a graph JSON ciphertext, and verifie
 
 Route: `/graph-crypto-paper`  
 Implements Corona, Complete Bipartite, and Star schemes exactly as specified while preserving traceroute behavior.
+
